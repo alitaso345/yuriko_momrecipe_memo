@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>買い物リストアプリ</title>
+    <title>同期買い物リスト</title>
     <style>
         :root {
             --primary-color: #007bff;
-            --secondary-color: #dc3545;
+            --secondary-color: #dc3545; /* 未使用 */
             --light-gray: #f8f9fa;
             --gray: #6c757d;
             --border-color: #dee2e6;
@@ -19,7 +19,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: var(--light-gray);
             color: #333;
-            overscroll-behavior-y: contain; /* iOSでのバウンススクロール抑制 */
+            overscroll-behavior-y: contain;
         }
 
         #app {
@@ -27,14 +27,69 @@
             margin: 0 auto;
             padding: 15px;
             background-color: #fff;
-            min-height: calc(100vh - 30px); /* ビューポートの高さを確保 */
+            min-height: calc(100vh - 30px);
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: relative; /* ローディング表示のため */
         }
+
+        /* ローディング表示 */
+        #loading {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2em;
+            color: var(--gray);
+            z-index: 10;
+        }
+        /* https://tobiasahlin.com/spinkit/ */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            position: relative;
+            margin-right: 15px;
+        }
+        .double-bounce1, .double-bounce2 {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            opacity: 0.6;
+            position: absolute;
+            top: 0;
+            left: 0;
+            -webkit-animation: sk-bounce 2.0s infinite ease-in-out;
+            animation: sk-bounce 2.0s infinite ease-in-out;
+        }
+        .double-bounce2 {
+            -webkit-animation-delay: -1.0s;
+            animation-delay: -1.0s;
+        }
+        @-webkit-keyframes sk-bounce {
+            0%, 100% { -webkit-transform: scale(0.0) }
+            50% { -webkit-transform: scale(1.0) }
+        }
+        @keyframes sk-bounce {
+             0%, 100% {
+                transform: scale(0.0);
+                -webkit-transform: scale(0.0);
+             } 50% {
+                transform: scale(1.0);
+                -webkit-transform: scale(1.0);
+             }
+        }
+
 
         /* 初期表示 */
         #initial-view {
             display: flex;
             flex-direction: column;
+        }
+        #initial-view p {
+            margin-top: 0;
+            color: var(--gray);
         }
 
         #list-input {
@@ -46,7 +101,7 @@
             border-radius: 6px;
             font-size: 16px;
             min-height: 200px;
-            resize: vertical; /* 縦方向のリサイズのみ許可 */
+            resize: vertical;
         }
 
         button {
@@ -59,20 +114,40 @@
             cursor: pointer;
             font-weight: bold;
             transition: background-color 0.2s ease;
+            margin-bottom: 10px;
+        }
+        button:disabled {
+             background-color: #cccccc;
+             cursor: not-allowed;
         }
 
         #create-list-btn {
             background-color: var(--primary-color);
             color: white;
-            margin-bottom: 10px;
         }
-        #create-list-btn:hover {
+        #create-list-btn:not(:disabled):hover {
             background-color: #0056b3;
         }
 
         /* リスト表示 */
         #list-view {
             display: none; /* 初期状態は非表示 */
+        }
+        #list-title {
+             font-size: 1.5em;
+             margin-bottom: 15px;
+             color: var(--primary-color);
+             text-align: center;
+             word-break: break-all; /* 長いリストIDがはみ出ないように */
+             padding-bottom: 10px;
+             border-bottom: 1px solid var(--border-color);
+        }
+         #list-title small {
+            display: block;
+            font-size: 0.6em;
+            color: var(--gray);
+            margin-top: 5px;
+            font-weight: normal;
         }
 
         .category h3 {
@@ -83,9 +158,10 @@
             color: var(--primary-color);
             font-size: 20px;
         }
-        .category:first-child h3 {
+        #checklist .category:first-child h3 {
             margin-top: 0;
         }
+
 
         .category ul,
         #completed-items ul {
@@ -101,7 +177,7 @@
             display: flex;
             align-items: center;
             font-size: 17px;
-            word-break: break-word; /* 長い単語も折り返す */
+            word-break: break-word;
         }
 
         .category li:last-child,
@@ -111,17 +187,16 @@
 
         input[type="checkbox"] {
             margin-right: 12px;
-            /* チェックボックスを大きく、タップしやすくする */
             width: 22px;
             height: 22px;
-            flex-shrink: 0; /* チェックボックスが縮まないように */
+            flex-shrink: 0;
             appearance: none;
             -webkit-appearance: none;
             border: 2px solid var(--gray);
             border-radius: 4px;
             cursor: pointer;
             position: relative;
-            top: -2px; /* ラベルとの垂直位置調整 */
+            top: -2px;
         }
 
         input[type="checkbox"]:checked {
@@ -129,7 +204,6 @@
             border-color: var(--primary-color);
         }
 
-        /* チェックマークのスタイル */
         input[type="checkbox"]:checked::after {
             content: '';
             display: block;
@@ -145,8 +219,8 @@
 
 
         label {
-            flex-grow: 1; /* ラベルが残りのスペースを埋める */
-            cursor: pointer; /* ラベルクリックでもチェック可能に */
+            flex-grow: 1;
+            cursor: pointer;
         }
 
         #completed-items {
@@ -166,28 +240,33 @@
             text-decoration: line-through;
             color: var(--gray);
         }
-        /* data-checked=true の場合、完了済みでなくても打ち消し線等をつける場合（今回は不要かも） */
-        /*
-        li[data-checked="true"] label {
-             text-decoration: line-through;
-             color: var(--gray);
-        }
-        */
 
-        #reset-list-btn {
-            background-color: var(--secondary-color);
+        /* 新しいリスト作成ボタン (リスト表示時) */
+        #back-to-create-btn {
+            background-color: var(--gray);
             color: white;
             margin-top: 30px;
         }
-        #reset-list-btn:hover {
-            background-color: #c82333;
+         #back-to-create-btn:hover {
+            background-color: #5a6268;
         }
+
 
     </style>
 </head>
 <body>
     <div id="app">
-        <div id="initial-view">
+        <div id="loading">
+             <div class="spinner">
+                <div class="double-bounce1"></div>
+                <div class="double-bounce2"></div>
+             </div>
+            読み込み中...
+        </div>
+
+        <div id="initial-view" style="display: none;">
+            <h2>新しい買い物リストを作成</h2>
+            <p>テキストエリアにリストを貼り付けて作成ボタンを押してください。</p>
             <textarea id="list-input" placeholder="ここに買い物リストを貼り付けます。
 例：
 [肉・魚]
@@ -197,9 +276,11 @@
 [野菜]
 大根11cm分(440g)
 ..."></textarea>
-            <button id="create-list-btn">買い物リストを作る</button>
+            <button id="create-list-btn">新しい買い物リストを作成</button>
         </div>
-        <div id="list-view">
+
+        <div id="list-view" style="display: none;">
+            <div id="list-title">買い物リスト <small>このURLを共有してください</small></div>
             <div id="checklist">
                 </div>
             <div id="completed-items">
@@ -207,175 +288,320 @@
                 <ul>
                     </ul>
             </div>
-            <button id="reset-list-btn">買い物リストを初期化する</button>
+            <button id="back-to-create-btn">新しいリストを作る画面へ</button>
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import {
+            getFirestore, collection, addDoc, doc, onSnapshot, updateDoc, getDoc, serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // ▼▼▼ Firebase Configuration ▼▼▼
+        // TODO: Replace the following with your app's Firebase project configuration
+        // https://firebase.google.com/docs/web/setup#available-libraries
+        const firebaseConfig = {
+            apiKey: "AIzaSyBtVSgKLNnyATX2F1JEdFZFls-ETiJ7YqA",
+            authDomain: "yuriko-momrecipe-memo.firebaseapp.com",
+            projectId: "yuriko-momrecipe-memo",
+            storageBucket: "yuriko-momrecipe-memo.firebasestorage.app",
+            messagingSenderId: "270024217179",
+            appId: "1:270024217179:web:0937704a5e02414f26257e",
+            measurementId: "G-K652Q5BCRM"
+        };
+        // ▲▲▲ Firebase Configuration ▲▲▲
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const listsCollection = collection(db, "shoppingLists");
+
+        // DOM Elements
         const initialView = document.getElementById('initial-view');
         const listView = document.getElementById('list-view');
         const listInput = document.getElementById('list-input');
         const createListBtn = document.getElementById('create-list-btn');
-        const resetListBtn = document.getElementById('reset-list-btn');
         const checklistDiv = document.getElementById('checklist');
         const completedListUl = document.querySelector('#completed-items ul');
         const completedItemsDiv = document.getElementById('completed-items');
+        const listTitleDiv = document.getElementById('list-title');
+        const backToCreateBtn = document.getElementById('back-to-create-btn');
+        const loadingIndicator = document.getElementById('loading');
 
-        // --- イベントリスナー ---
-        createListBtn.addEventListener('click', createList);
-        resetListBtn.addEventListener('click', resetList);
-        // イベント委譲: チェックリスト全体のクリックを監視
-        checklistDiv.addEventListener('change', handleCheckboxChange);
-        completedListUl.addEventListener('change', handleCheckboxChange);
-        // ラベルクリックでもチェックできるように
-        checklistDiv.addEventListener('click', handleLabelClick);
-        completedListUl.addEventListener('click', handleLabelClick);
+        let currentListId = null;
+        let unsubscribe = null; // Firestore listener unsubscribe function
 
         // --- 初期化処理 ---
         document.addEventListener('DOMContentLoaded', init);
 
         function init() {
-            restoreState();
-        }
+            // URLからリストIDを取得
+            const params = new URLSearchParams(window.location.search);
+            currentListId = params.get('list');
 
-        // --- 機能関数 ---
-
-        function parseText(text) {
-            const lines = text.trim().split('\n');
-            const categories = [];
-            let currentCategory = null;
-
-            lines.forEach(line => {
-                line = line.trim();
-                if (!line) return; // 空行はスキップ
-
-                const categoryMatch = line.match(/^\[(.+?)\]$/);
-                if (categoryMatch) {
-                    // カテゴリ行
-                    currentCategory = { title: categoryMatch[1], items: [] };
-                    categories.push(currentCategory);
-                } else if (currentCategory) {
-                    // アイテム行
-                    // 「、」で区切られている場合は分割
-                    const items = line.split(/[、､　]/).map(item => item.trim()).filter(item => item); // 全角/半角スペース、読点で分割
-                    currentCategory.items.push(...items);
-                }
-            });
-            return categories;
-        }
-
-        function renderList(categories) {
-            checklistDiv.innerHTML = ''; // 既存のリストをクリア
-            completedListUl.innerHTML = ''; // 完了済みリストもクリア
-
-            categories.forEach((category, categoryIndex) => {
-                if (category.items.length === 0) return; // アイテムがないカテゴリは表示しない
-
-                const categoryDiv = document.createElement('div');
-                categoryDiv.classList.add('category');
-                categoryDiv.dataset.categoryIndex = categoryIndex; // カテゴリインデックスを保持
-
-                const title = document.createElement('h3');
-                title.textContent = category.title;
-                categoryDiv.appendChild(title);
-
-                const ul = document.createElement('ul');
-                category.items.forEach((item, itemIndex) => {
-                    // ここで isChecked は常に false で初期化
-                    const li = createListItem(item, categoryIndex, itemIndex, false);
-                    ul.appendChild(li);
-                });
-                categoryDiv.appendChild(ul);
-                checklistDiv.appendChild(categoryDiv);
-            });
-
-            // 完了済みリストの表示/非表示を初期化
-            toggleCompletedVisibility();
-        }
-
-        function createListItem(itemText, categoryIndex, itemIndex, isChecked) {
-            const li = document.createElement('li');
-            li.dataset.categoryIndex = categoryIndex;
-            li.dataset.itemIndex = itemIndex; // 元のインデックスも保持（必須ではないかも）
-            li.dataset.itemText = itemText; // テキストも保持
-
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            // isChecked は restoreState で別途設定するため、ここでは初期状態を反映しない
-            // checkbox.checked = isChecked;
-            checkbox.id = `item-${categoryIndex}-${itemIndex}`; // 一意なID
-
-            const label = document.createElement('label');
-            label.htmlFor = checkbox.id; // ラベルとチェックボックスを関連付け
-            label.textContent = itemText;
-
-            li.appendChild(checkbox);
-            li.appendChild(label);
-
-            // isChecked フラグに基づいて data-checked 属性を初期設定（renderListからの呼び出しでは常にfalse）
-            if(isChecked) {
-                 li.dataset.checked = 'true';
+            if (currentListId) {
+                // リストIDがあれば、そのリストを表示・同期開始
+                loadAndSyncList(currentListId);
+            } else {
+                // リストIDがなければ、初期画面（新規作成フォーム）を表示
+                showInitialView();
             }
 
-            return li;
+            // イベントリスナー設定
+            createListBtn.addEventListener('click', handleCreateList);
+            backToCreateBtn.addEventListener('click', () => {
+                 // リスナーを解除してから初期画面へ
+                 if (unsubscribe) {
+                     unsubscribe();
+                     unsubscribe = null;
+                 }
+                 // URLから ?list=... を削除してリロードするのがシンプル
+                 window.location.href = window.location.pathname;
+                 // または、表示だけ切り替える場合
+                 // showInitialView();
+            });
+            // イベント委譲 (チェックボックスとラベル)
+            listView.addEventListener('change', handleCheckboxChange);
+            listView.addEventListener('click', handleLabelClick);
+
         }
 
-        function createList() {
-            const inputText = listInput.value;
-            if (!inputText.trim()) {
+        // --- 表示切り替え ---
+        function showLoading(isLoading) {
+            loadingIndicator.style.display = isLoading ? 'flex' : 'none';
+        }
+
+        function showInitialView() {
+             currentListId = null;
+             listInput.value = ''; // テキストエリアをクリア
+             listView.style.display = 'none';
+             initialView.style.display = 'flex';
+             showLoading(false);
+        }
+
+        function showListView() {
+             initialView.style.display = 'none';
+             listView.style.display = 'block';
+             showLoading(false);
+        }
+
+        // --- Firestore データ操作 ---
+
+        // 新しいリストを作成
+        async function handleCreateList() {
+            const inputText = listInput.value.trim();
+            if (!inputText) {
                 alert('リストの内容を入力してください。');
                 return;
             }
-            const categories = parseText(inputText);
-            if (categories.length === 0) {
+            const parsedData = parseText(inputText);
+            if (parsedData.length === 0) {
                 alert('有効なリスト形式が見つかりませんでした。\n例：[カテゴリ名]\nアイテム1');
                 return;
             }
 
-            renderList(categories);
-            initialView.style.display = 'none';
-            listView.style.display = 'block';
-            saveState(); // 新規作成時はチェック状態は全てfalseで保存される
+            // Firestore に保存するデータ形式に変換
+            const newListData = {
+                createdAt: serverTimestamp(), // 作成日時
+                categories: parsedData.map(category => ({
+                    title: category.title,
+                    // 各アイテムにIDと初期状態を付与
+                    items: category.items.map(itemText => ({
+                        id: generateItemId(), // 一意なIDを生成
+                        text: itemText,
+                        isChecked: false
+                    }))
+                }))
+            };
+
+            createListBtn.disabled = true; // 連打防止
+            showLoading(true);
+
+            try {
+                // Firestoreに新しいドキュメントを追加
+                const docRef = await addDoc(listsCollection, newListData);
+                console.log("Document written with ID: ", docRef.id);
+                // 新しいリストIDを含むURLにリダイレクト
+                window.location.search = `?list=${docRef.id}`;
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                alert('リストの作成中にエラーが発生しました。');
+                createListBtn.disabled = false;
+                showLoading(false);
+            }
         }
 
-        function handleCheckboxChange(event) {
-            if (event.target.type === 'checkbox') {
-                const li = event.target.closest('li');
-                if (!li) return;
+        // 既存リストの読み込みと同期開始
+        function loadAndSyncList(listId) {
+            showLoading(true);
+            const listRef = doc(db, "shoppingLists", listId);
 
-                const isChecked = event.target.checked;
+            // 既存のリスナーがあれば解除
+            if (unsubscribe) {
+                 unsubscribe();
+            }
 
-                // 移動処理
-                if (isChecked) {
-                    moveItem(li, completedListUl);
+            // onSnapshotでリアルタイムリスナーを設定
+            unsubscribe = onSnapshot(listRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    console.log("Current data: ", docSnap.data());
+                    const listData = docSnap.data();
+                    renderList(listId, listData); // データで画面を再描画
+                    showListView(); // リスト表示を表示 (初回読み込み後)
                 } else {
-                    const categoryIndex = li.dataset.categoryIndex;
-                    const targetUl = checklistDiv.querySelector(`.category[data-category-index="${categoryIndex}"] ul`);
-                    if (targetUl) {
-                         moveItem(li, targetUl);
-                    } else {
-                        console.error("元のカテゴリが見つかりません:", categoryIndex);
-                        checklistDiv.querySelector('ul')?.prepend(li);
-                    }
+                    // ドキュメントが存在しない場合
+                    console.log("No such document!");
+                    alert("指定されたリストが見つかりません。新しいリストを作成しますか？");
+                     if (unsubscribe) unsubscribe(); // リスナー解除
+                     window.location.href = window.location.pathname; // 初期画面へ
                 }
-                // 移動後に状態を保存
-                saveState();
-                toggleCompletedVisibility();
+                showLoading(false); // 存在しない場合もローディング解除
+            }, (error) => {
+                 console.error("Error listening to document:", error);
+                 alert("リストの読み込み中にエラーが発生しました。");
+                 showLoading(false);
+                 // エラー時も初期画面に戻るなど検討
+                 if (unsubscribe) unsubscribe();
+                 window.location.href = window.location.pathname;
+            });
+        }
+
+        // アイテムのチェック状態を更新
+        async function updateItemCheckedStatus(listId, itemId, newCheckedState) {
+            const listRef = doc(db, "shoppingLists", listId);
+            try {
+                const docSnap = await getDoc(listRef); // 最新のデータを取得
+                if (docSnap.exists()) {
+                    const listData = docSnap.data();
+                    let itemUpdated = false;
+
+                    // カテゴリ配列を走査して該当アイテムの isChecked を更新
+                    const updatedCategories = listData.categories.map(category => {
+                         const updatedItems = category.items.map(item => {
+                            if (item.id === itemId) {
+                                itemUpdated = true;
+                                // isChecked プロパティを更新して新しいオブジェクトを返す
+                                return { ...item, isChecked: newCheckedState };
+                            }
+                            return item; // 変更がない場合は元のアイテムを返す
+                         });
+                         // 更新された items 配列を持つ新しいカテゴリオブジェクトを返す
+                         return { ...category, items: updatedItems };
+                    });
+
+                    if (itemUpdated) {
+                        // categories フィールド全体を更新後の配列で上書き
+                        await updateDoc(listRef, {
+                            categories: updatedCategories
+                        });
+                        console.log("Item status updated successfully.");
+                    } else {
+                         console.warn("Item ID not found, no update performed:", itemId);
+                    }
+                } else {
+                    console.error("Document does not exist for update.");
+                }
+            } catch (error) {
+                console.error("Error updating item status: ", error);
+                // ユーザーへのエラー通知 (必要に応じて)
+                // alert("アイテムの状態更新に失敗しました。");
             }
         }
 
-        function moveItem(liElement, targetUl) {
-            targetUl.appendChild(liElement);
-             // 見た目の更新（打ち消し線など）はCSSで行う想定
+
+        // --- 画面描画 ---
+
+        // テキスト解析 (既存のものを流用)
+        function parseText(text) {
+             const lines = text.trim().split('\n');
+             const categories = [];
+             let currentCategory = null;
+
+             lines.forEach(line => {
+                 line = line.trim();
+                 if (!line) return;
+
+                 const categoryMatch = line.match(/^\[(.+?)\]$/);
+                 if (categoryMatch) {
+                     currentCategory = { title: categoryMatch[1], items: [] };
+                     categories.push(currentCategory);
+                 } else if (currentCategory) {
+                     const items = line.split(/[、､　]/).map(item => item.trim()).filter(item => item);
+                     currentCategory.items.push(...items);
+                 }
+             });
+             return categories;
         }
 
-        function handleLabelClick(event) {
-            // ラベルクリック時の処理（特に変更なし）
-            if (event.target.tagName === 'LABEL') {
-                 // チェックボックス自体へのクリックイベントはブラウザが処理するので不要
+        // Firestoreデータからリストをレンダリング
+        function renderList(listId, listData) {
+            checklistDiv.innerHTML = ''; // 未完了リストをクリア
+            completedListUl.innerHTML = ''; // 完了リストをクリア
+
+            // リストタイトル（ID）表示
+            listTitleDiv.innerHTML = `買い物リスト <small>ID: ${listId}</small>`;
+
+
+            if (!listData || !listData.categories) {
+                console.warn("No categories data found to render.");
+                toggleCompletedVisibility(); // 完了済みエリアの表示も更新
+                return; // データがなければ描画しない
             }
+
+            listData.categories.forEach((category) => {
+                 // カテゴリごとに未完了アイテム用のulを作成
+                const categoryDiv = document.createElement('div');
+                categoryDiv.classList.add('category');
+                const title = document.createElement('h3');
+                title.textContent = category.title;
+                categoryDiv.appendChild(title);
+                const ul = document.createElement('ul');
+
+                let hasUncompletedItems = false;
+                category.items.forEach((item) => {
+                     const li = createListItemElement(item);
+                     if (item.isChecked) {
+                         // 完了済みアイテム
+                         completedListUl.appendChild(li);
+                     } else {
+                         // 未完了アイテム
+                         ul.appendChild(li);
+                         hasUncompletedItems = true;
+                     }
+                });
+
+                // 未完了アイテムが1つでもあればカテゴリを表示
+                if(hasUncompletedItems) {
+                     categoryDiv.appendChild(ul);
+                     checklistDiv.appendChild(categoryDiv);
+                }
+            });
+
+            toggleCompletedVisibility(); // 完了済みエリアの表示/非表示を更新
         }
 
+        // 個々のリストアイテム要素を作成
+        function createListItemElement(item) {
+             const li = document.createElement('li');
+             li.dataset.itemId = item.id; // アイテムIDをdata属性に設定
+
+             const checkbox = document.createElement('input');
+             checkbox.type = 'checkbox';
+             checkbox.checked = item.isChecked;
+             checkbox.id = `item-${item.id}`; // 一意なID
+
+             const label = document.createElement('label');
+             label.htmlFor = checkbox.id;
+             label.textContent = item.text;
+
+             li.appendChild(checkbox);
+             li.appendChild(label);
+             return li;
+        }
+
+        // 完了済みアイテムがある場合のみ「完了済み」エリアを表示
         function toggleCompletedVisibility() {
             if (completedListUl.children.length > 0) {
                 completedItemsDiv.style.display = 'block';
@@ -384,100 +610,35 @@
             }
         }
 
+        // --- イベントハンドラ ---
 
-        function resetList() {
-            if (confirm('本当に買い物リストを初期化しますか？')) {
-                // ローカルストレージのデータをクリア
-                localStorage.removeItem('isListVisible');
-                localStorage.removeItem('checklistHtml');
-                localStorage.removeItem('completedHtml');
+        function handleCheckboxChange(event) {
+            if (event.target.type === 'checkbox' && currentListId) {
+                const li = event.target.closest('li');
+                if (!li) return;
+                const itemId = li.dataset.itemId;
+                const isChecked = event.target.checked;
 
-                // DOMをクリア
-                checklistDiv.innerHTML = '';
-                completedListUl.innerHTML = '';
-                listInput.value = '';
+                // Firestoreのデータを更新
+                updateItemCheckedStatus(currentListId, itemId, isChecked);
 
-                // 表示切り替え
-                listView.style.display = 'none';
-                initialView.style.display = 'flex';
-                toggleCompletedVisibility(); // 完了済みエリアを非表示に
+                // DOM操作は onSnapshot による再描画に任せる
+                // ※瞬間的なレスポンスのためにDOMを仮更新することも可能だが、今回はシンプルにする
             }
         }
 
-        // --- 状態の保存と復元 (修正箇所) ---
-
-        function saveState() {
-            const isListVisible = listView.style.display === 'block';
-            localStorage.setItem('isListVisible', isListVisible);
-
-            if (isListVisible) {
-                // --- ここから修正 ---
-                // 全てのリストアイテムを取得し、チェック状態を data-checked 属性に反映
-                const allListItems = document.querySelectorAll('#checklist li, #completed-items li');
-                allListItems.forEach(li => {
-                    const checkbox = li.querySelector('input[type="checkbox"]');
-                    if (checkbox && checkbox.checked) {
-                        li.dataset.checked = 'true'; // チェックされていれば属性を設定
-                    } else {
-                        li.removeAttribute('data-checked'); // チェックされていなければ属性を削除
-                    }
-                });
-                // --- 修正ここまで ---
-
-                // data-checked 属性が更新された後の HTML 構造を保存
-                localStorage.setItem('checklistHtml', checklistDiv.innerHTML);
-                localStorage.setItem('completedHtml', completedListUl.innerHTML);
+        function handleLabelClick(event) {
+            // ラベルクリックはデフォルトの動作でチェックボックスがトグルされるはず
+            if (event.target.tagName === 'LABEL') {
+                // 特に処理は不要
             }
         }
 
-        function restoreState() {
-            const isListVisible = localStorage.getItem('isListVisible') === 'true';
+        // --- ユーティリティ ---
 
-            if (isListVisible) {
-                const checklistHtml = localStorage.getItem('checklistHtml');
-                const completedHtml = localStorage.getItem('completedHtml');
-
-                if (checklistHtml !== null && completedHtml !== null) {
-                    // HTML構造を復元
-                    checklistDiv.innerHTML = checklistHtml;
-                    completedListUl.innerHTML = completedHtml;
-
-                    // --- ここから修正 ---
-                    // 復元したHTML内の data-checked 属性に基づいてチェックボックスの状態を設定
-                    const allRestoredItems = document.querySelectorAll('#checklist li, #completed-items li');
-                    allRestoredItems.forEach(li => {
-                        const checkbox = li.querySelector('input[type="checkbox"]');
-                        if (checkbox) {
-                            // li要素に data-checked="true" があれば、チェックボックスをチェック状態にする
-                            if (li.dataset.checked === 'true') {
-                                checkbox.checked = true;
-                            } else {
-                                checkbox.checked = false; // なければ非チェック状態にする
-                            }
-                        }
-                    });
-                    // --- 修正ここまで ---
-
-                    // 表示状態を切り替え
-                    initialView.style.display = 'none';
-                    listView.style.display = 'block';
-
-                    // 完了済みリストの表示/非表示を更新
-                    toggleCompletedVisibility();
-
-                } else {
-                    // 保存されたデータが不完全なら初期表示
-                    showInitialView();
-                }
-            } else {
-                // リストが表示されていなかった場合も初期表示
-                showInitialView();
-            }
-        }
-
-        function showInitialView() {
-            listView.style.display = 'none';
-            initialView.style.display = 'flex';
+        // 簡単な一意ID生成関数 (より堅牢なUUIDライブラリの使用も検討可)
+        function generateItemId() {
+             return Date.now().toString(36) + Math.random().toString(36).substring(2);
         }
 
     </script>
