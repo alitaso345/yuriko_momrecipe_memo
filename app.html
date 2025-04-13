@@ -166,6 +166,13 @@
             text-decoration: line-through;
             color: var(--gray);
         }
+        /* data-checked=true の場合、完了済みでなくても打ち消し線等をつける場合（今回は不要かも） */
+        /*
+        li[data-checked="true"] label {
+             text-decoration: line-through;
+             color: var(--gray);
+        }
+        */
 
         #reset-list-btn {
             background-color: var(--secondary-color);
@@ -274,6 +281,7 @@
 
                 const ul = document.createElement('ul');
                 category.items.forEach((item, itemIndex) => {
+                    // ここで isChecked は常に false で初期化
                     const li = createListItem(item, categoryIndex, itemIndex, false);
                     ul.appendChild(li);
                 });
@@ -293,7 +301,8 @@
 
             const checkbox = document.createElement('input');
             checkbox.type = 'checkbox';
-            checkbox.checked = isChecked;
+            // isChecked は restoreState で別途設定するため、ここでは初期状態を反映しない
+            // checkbox.checked = isChecked;
             checkbox.id = `item-${categoryIndex}-${itemIndex}`; // 一意なID
 
             const label = document.createElement('label');
@@ -302,6 +311,12 @@
 
             li.appendChild(checkbox);
             li.appendChild(label);
+
+            // isChecked フラグに基づいて data-checked 属性を初期設定（renderListからの呼び出しでは常にfalse）
+            if(isChecked) {
+                 li.dataset.checked = 'true';
+            }
+
             return li;
         }
 
@@ -320,7 +335,7 @@
             renderList(categories);
             initialView.style.display = 'none';
             listView.style.display = 'block';
-            saveState();
+            saveState(); // 新規作成時はチェック状態は全てfalseで保存される
         }
 
         function handleCheckboxChange(event) {
@@ -330,66 +345,37 @@
 
                 const isChecked = event.target.checked;
 
-                // アニメーションのため少し待ってから移動（任意）
-                // li.style.transition = 'opacity 0.3s ease';
-                // li.style.opacity = 0;
-
-                // setTimeout(() => {
-                    if (isChecked) {
-                        // チェックされた -> 完了済みへ移動
-                        moveItem(li, completedListUl);
+                // 移動処理
+                if (isChecked) {
+                    moveItem(li, completedListUl);
+                } else {
+                    const categoryIndex = li.dataset.categoryIndex;
+                    const targetUl = checklistDiv.querySelector(`.category[data-category-index="${categoryIndex}"] ul`);
+                    if (targetUl) {
+                         moveItem(li, targetUl);
                     } else {
-                        // チェックが外れた -> 元のカテゴリへ移動
-                        const categoryIndex = li.dataset.categoryIndex;
-                        const targetUl = checklistDiv.querySelector(`.category[data-category-index="${categoryIndex}"] ul`);
-                        if (targetUl) {
-                             moveItem(li, targetUl);
-                        } else {
-                            // 元のカテゴリが見つからない場合（通常は発生しない）
-                            console.error("元のカテゴリが見つかりません:", categoryIndex);
-                            // とりあえず未完了リストの最初に追加するなど代替処理も可能
-                             checklistDiv.querySelector('ul')?.prepend(li); // 最初のulに追加
-                        }
+                        console.error("元のカテゴリが見つかりません:", categoryIndex);
+                        checklistDiv.querySelector('ul')?.prepend(li);
                     }
-                    // li.style.opacity = 1; // アニメーション用
-                    saveState(); // 状態を保存
-                    toggleCompletedVisibility(); // 完了済みエリアの表示/非表示を更新
-                // }, 150); // アニメーション時間
+                }
+                // 移動後に状態を保存
+                saveState();
+                toggleCompletedVisibility();
             }
         }
 
         function moveItem(liElement, targetUl) {
-            // 移動先リスト内で元の順序をある程度維持するように挿入する
-            //（ここでは単純に末尾に追加）
             targetUl.appendChild(liElement);
-
-             // チェック状態に応じてスタイルを更新（特に戻す場合）
-            const label = liElement.querySelector('label');
-            if (targetUl === completedListUl) {
-                // label.style.textDecoration = 'line-through';
-                // label.style.color = 'var(--gray)';
-            } else {
-                // label.style.textDecoration = 'none';
-                // label.style.color = 'inherit'; // 元の色に戻す
-            }
+             // 見た目の更新（打ち消し線など）はCSSで行う想定
         }
 
-        // ラベルクリックでチェックボックスをトグルする
         function handleLabelClick(event) {
+            // ラベルクリック時の処理（特に変更なし）
             if (event.target.tagName === 'LABEL') {
-                const checkboxId = event.target.htmlFor;
-                const checkbox = document.getElementById(checkboxId);
-                if (checkbox) {
-                     // checkbox.checked = !checkbox.checked; // これだとchangeイベントが2回発火することがある
-                    // checkbox.dispatchEvent(new Event('change', { bubbles: true })); // changeイベントを手動で発火
-                    // 直接クリックイベントを発火させる方が自然か
-                    // checkbox.click(); // これでも2回発火する場合がある
-                    // → input[type=checkbox]のイベントリスナーで処理するので、ここでは何もしない
-                }
+                 // チェックボックス自体へのクリックイベントはブラウザが処理するので不要
             }
         }
 
-        // 完了済みアイテムがある場合のみ「完了済み」エリアを表示
         function toggleCompletedVisibility() {
             if (completedListUl.children.length > 0) {
                 completedItemsDiv.style.display = 'block';
@@ -401,33 +387,46 @@
 
         function resetList() {
             if (confirm('本当に買い物リストを初期化しますか？')) {
-                localStorage.removeItem('shoppingListState');
+                // ローカルストレージのデータをクリア
                 localStorage.removeItem('isListVisible');
                 localStorage.removeItem('checklistHtml');
                 localStorage.removeItem('completedHtml');
 
+                // DOMをクリア
                 checklistDiv.innerHTML = '';
                 completedListUl.innerHTML = '';
-                listInput.value = ''; // テキストエリアもクリア
+                listInput.value = '';
 
+                // 表示切り替え
                 listView.style.display = 'none';
-                initialView.style.display = 'flex'; // 初期表示はflexboxに設定
-                toggleCompletedVisibility(); // 念のため非表示に
+                initialView.style.display = 'flex';
+                toggleCompletedVisibility(); // 完了済みエリアを非表示に
             }
         }
 
-        // --- 状態の保存と復元 ---
+        // --- 状態の保存と復元 (修正箇所) ---
 
         function saveState() {
             const isListVisible = listView.style.display === 'block';
             localStorage.setItem('isListVisible', isListVisible);
 
             if (isListVisible) {
-                // HTML構造を保存
+                // --- ここから修正 ---
+                // 全てのリストアイテムを取得し、チェック状態を data-checked 属性に反映
+                const allListItems = document.querySelectorAll('#checklist li, #completed-items li');
+                allListItems.forEach(li => {
+                    const checkbox = li.querySelector('input[type="checkbox"]');
+                    if (checkbox && checkbox.checked) {
+                        li.dataset.checked = 'true'; // チェックされていれば属性を設定
+                    } else {
+                        li.removeAttribute('data-checked'); // チェックされていなければ属性を削除
+                    }
+                });
+                // --- 修正ここまで ---
+
+                // data-checked 属性が更新された後の HTML 構造を保存
                 localStorage.setItem('checklistHtml', checklistDiv.innerHTML);
                 localStorage.setItem('completedHtml', completedListUl.innerHTML);
-                // テキストエリアの内容も保存しておくと、戻った時に復元できる（任意）
-                // localStorage.setItem('listInputText', listInput.value);
             }
         }
 
@@ -439,38 +438,46 @@
                 const completedHtml = localStorage.getItem('completedHtml');
 
                 if (checklistHtml !== null && completedHtml !== null) {
+                    // HTML構造を復元
                     checklistDiv.innerHTML = checklistHtml;
                     completedListUl.innerHTML = completedHtml;
 
-                    // 復元後、表示状態を切り替え
+                    // --- ここから修正 ---
+                    // 復元したHTML内の data-checked 属性に基づいてチェックボックスの状態を設定
+                    const allRestoredItems = document.querySelectorAll('#checklist li, #completed-items li');
+                    allRestoredItems.forEach(li => {
+                        const checkbox = li.querySelector('input[type="checkbox"]');
+                        if (checkbox) {
+                            // li要素に data-checked="true" があれば、チェックボックスをチェック状態にする
+                            if (li.dataset.checked === 'true') {
+                                checkbox.checked = true;
+                            } else {
+                                checkbox.checked = false; // なければ非チェック状態にする
+                            }
+                        }
+                    });
+                    // --- 修正ここまで ---
+
+                    // 表示状態を切り替え
                     initialView.style.display = 'none';
                     listView.style.display = 'block';
 
                     // 完了済みリストの表示/非表示を更新
                     toggleCompletedVisibility();
 
-                     // 注意： HTMLを復元した場合、イベントリスナーは再設定されない。
-                     // イベント委譲を使っているため、基本的には問題ないはず。
-                     // もし個別の要素にリスナーを追加していた場合は、ここで再設定が必要。
-
                 } else {
-                     // データが不完全なら初期状態に戻す
-                     showInitialView();
+                    // 保存されたデータが不完全なら初期表示
+                    showInitialView();
                 }
-                // 保存されたテキストエリアの内容を復元する場合
-                // const savedInputText = localStorage.getItem('listInputText');
-                // if (savedInputText) {
-                //     listInput.value = savedInputText;
-                // }
-
             } else {
+                // リストが表示されていなかった場合も初期表示
                 showInitialView();
             }
         }
 
         function showInitialView() {
             listView.style.display = 'none';
-            initialView.style.display = 'flex'; // 初期表示はflexbox
+            initialView.style.display = 'flex';
         }
 
     </script>
